@@ -1,0 +1,66 @@
+name: Run Farcaster Account Bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      createCount:
+        description: "Buat N akun baru (Mode B). Kosong/0 = Mode A (account.txt)"
+        required: false
+        default: "0"
+      extraUnits:
+        description: "Tambahan storage units per akun (default 0)"
+        required: false
+        default: "0"
+      recoveryAddress:
+        description: "Custom recovery (opsional; kosong = proxy default)"
+        required: false
+      dryRun:
+        type: boolean
+        description: "Jalankan tanpa kirim tx"
+        required: false
+        default: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Tulis account.txt dari secret (opsional, Mode A)
+        if: ${{ secrets.PRIVATE_KEYS != '' }}
+        run: |
+          printf "%s\n" "${{ secrets.PRIVATE_KEYS }}" > account.txt
+          echo "Wrote account.txt (hidden)"
+
+      - name: Buat .env
+        run: |
+          echo "OP_RPC=${{ secrets.OP_RPC }}" >> .env
+          echo "EXTRA_UNITS=${{ github.event.inputs.extraUnits || '0' }}" >> .env
+          echo "RECOVERY_ADDRESS=${{ github.event.inputs.recoveryAddress }}" >> .env
+          echo "DRY_RUN=${{ github.event.inputs.dryRun }}" >> .env
+          echo "OUTPUT_FILE=hasil.txt" >> .env
+          echo "KEYS_FILE=wallets.csv" >> .env
+          echo "CREATE_COUNT=${{ github.event.inputs.createCount || '0' }}" >> .env
+          echo "PAYER_PK=${{ secrets.PAYER_PK }}" >> .env
+
+      - run: npm ci
+      - run: npm start
+
+      - name: Upload hasil.txt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hasil-farcaster
+          path: hasil.txt
+          if-no-files-found: warn
+
+      - name: Upload wallets.csv (Mode Bulk)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallets-farcaster
+          path: wallets.csv
+          if-no-files-found: ignore
